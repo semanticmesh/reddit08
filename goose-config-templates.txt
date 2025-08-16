@@ -1,0 +1,726 @@
+# ~/.config/goose/config.yaml
+# Main Goose configuration for CRE Intelligence System
+
+projects:
+  cre-intelligence:
+    base_path: "/workspace/cre-intelligence"
+    description: "Commercial Real Estate Reddit Intelligence Platform"
+    
+    # Default extensions loaded for all sessions
+    default_extensions:
+      - bmad-agents
+      - reddit-harvester
+      - phrase-mining
+      - market-analysis
+      - geo-intelligence
+      - apify-connector
+      
+    # Git MCP knowledge sources
+    context_sources:
+      - git-mcp://github.com/cre-intelligence/market-data-repo
+      - git-mcp://github.com/cre-intelligence/analysis-templates
+      - git-mcp://github.com/cre-intelligence/intelligence-history
+      - git-mcp://localhost/cre-intelligence  # Local repo
+      
+    # Pre-configured session templates
+    session_templates:
+      - market-assessment.yaml
+      - competitive-analysis.yaml
+      - location-intelligence.yaml
+      - vertical-analysis.yaml
+      - weekly-intelligence-brief.yaml
+      - backfill-historical.yaml
+      
+    # Project-specific settings
+    settings:
+      auto_save_sessions: true
+      session_retention_days: 90
+      max_context_tokens: 100000
+      enable_telemetry: true
+
+# Extension definitions
+extensions:
+  # BMAD Agents MCP Server
+  bmad-agents:
+    type: mcp_server
+    server_url: "ws://localhost:8001/mcp"
+    capabilities: 
+      - structured_analysis
+      - agent_coordination
+      - report_generation
+      - sprint_management
+    auto_connect: true
+    retry_policy:
+      max_attempts: 3
+      backoff_seconds: 5
+    
+  # Reddit Harvester MCP Server  
+  reddit-harvester:
+    type: mcp_server
+    server_url: "ws://localhost:8002/mcp"
+    capabilities:
+      - social_monitoring
+      - content_extraction
+      - sentiment_analysis
+      - trend_detection
+    api_config:
+      rate_limit: 60  # requests per minute
+      cache_ttl: 3600  # seconds
+    
+  # Phrase Mining MCP Server
+  phrase-mining:
+    type: mcp_server
+    server_url: "ws://localhost:8003/mcp"
+    capabilities:
+      - term_extraction
+      - domain_classification
+      - trend_analysis
+      - lexicon_management
+    settings:
+      ngram_range: [1, 3]
+      min_document_frequency: 2
+      
+  # Market Analysis MCP Server
+  market-analysis:
+    type: mcp_server
+    server_url: "ws://localhost:8004/mcp"
+    capabilities:
+      - market_modeling
+      - price_analysis
+      - demand_forecasting
+      - competitive_intelligence
+    data_sources:
+      - costar
+      - redfin
+      - zillow
+      
+  # Geographic Intelligence MCP Server
+  geo-intelligence:
+    type: mcp_server
+    server_url: "ws://localhost:8005/mcp"
+    capabilities:
+      - location_analysis
+      - demographic_insights
+      - spatial_modeling
+      - metro_targeting
+    coverage_areas:
+      - nyc
+      - sf
+      - chicago
+      - la
+      - boston
+      - austin
+      
+  # Apify Connector MCP Server
+  apify-connector:
+    type: mcp_server
+    server_url: "ws://localhost:8006/mcp"
+    capabilities:
+      - actor_management
+      - payload_optimization
+      - harvest_scheduling
+      - data_extraction
+    api_key_env: APIFY_API_KEY
+    default_actor: "reddit-scraper-lite"
+
+# Context management settings
+context_management:
+  # Maximum tokens per session
+  max_session_tokens: 100000
+  
+  # Context compression strategy
+  compression:
+    strategy: "intelligent_summarization"
+    threshold_tokens: 80000
+    preserve_recent: 20000
+    
+  # Knowledge retention across sessions
+  retention:
+    enabled: true
+    storage: "persistent"
+    encryption: true
+    
+  # Cross-session memory
+  cross_session:
+    enabled: true
+    shared_knowledge_base: true
+    transfer_insights: true
+
+# Workflow automation
+automation:
+  # Scheduled workflows
+  schedules:
+    daily_harvest:
+      template: "daily-harvest.yaml"
+      cron: "0 9 * * *"  # 9 AM daily
+      enabled: true
+      
+    weekly_analysis:
+      template: "weekly-intelligence-brief.yaml"
+      cron: "0 10 * * MON"  # 10 AM Mondays
+      enabled: true
+      
+    monthly_backfill:
+      template: "backfill-historical.yaml"
+      cron: "0 2 1 * *"  # 2 AM first of month
+      enabled: true
+  
+  # Trigger conditions
+  triggers:
+    high_volume_alert:
+      condition: "post_volume > 1000"
+      action: "execute_deep_analysis"
+      
+    market_shift_detected:
+      condition: "sentiment_change > 0.3"
+      action: "generate_alert_report"
+
+# Performance optimization
+optimization:
+  # Caching
+  cache:
+    enabled: true
+    ttl_seconds: 3600
+    max_size_mb: 1000
+    
+  # Parallel processing
+  parallelization:
+    enabled: true
+    max_workers: 4
+    batch_size: 100
+    
+  # Resource limits
+  limits:
+    max_memory_gb: 8
+    max_cpu_percent: 80
+    timeout_seconds: 300
+
+# Monitoring and logging
+monitoring:
+  # Metrics collection
+  metrics:
+    enabled: true
+    export_interval: 60
+    exporters:
+      - prometheus
+      - datadog
+      
+  # Logging configuration
+  logging:
+    level: INFO
+    format: json
+    destinations:
+      - file: /var/log/goose/cre-intelligence.log
+      - stdout: true
+      
+  # Alerting
+  alerts:
+    enabled: true
+    channels:
+      - email: team@company.com
+      - slack: "#cre-intelligence"
+    conditions:
+      - error_rate > 0.05
+      - response_time > 5000
+      - session_failure
+
+# Security settings
+security:
+  # Authentication
+  auth:
+    enabled: true
+    method: oauth2
+    provider: company_sso
+    
+  # API key management
+  api_keys:
+    rotation_days: 90
+    encryption: true
+    vault_backend: hashicorp
+    
+  # Data protection
+  data:
+    encryption_at_rest: true
+    encryption_in_transit: true
+    pii_detection: true
+    pii_masking: true
+
+---
+# Session Templates Directory Structure
+# These would be separate files in ~/.config/goose/projects/cre-intelligence/templates/
+
+---
+# templates/market-assessment.yaml
+name: "Market Assessment Session"
+description: "Comprehensive market assessment for a specific metro and property type"
+version: "1.0.0"
+
+initialization:
+  required_params:
+    - metro_area
+    - property_type
+    - assessment_period
+    
+  context_loading:
+    - source: git-mcp://market-data-repo
+      paths:
+        - "/metro-profiles/{{metro_area}}/"
+        - "/property-types/{{property_type}}/"
+    - source: git-mcp://intelligence-history
+      query: "metro:{{metro_area}} AND type:{{property_type}} AND recent:30d"
+      
+  tool_preparation:
+    - tool: bmad-agents
+      action: load_assessment_templates
+    - tool: reddit-harvester
+      action: configure_metro_monitoring
+      params:
+        metro: "{{metro_area}}"
+
+workflow:
+  phases:
+    - name: "Data Collection"
+      steps:
+        - tool: reddit-harvester
+          method: harvest_cre_discussions
+          params:
+            metro: "{{metro_area}}"
+            property_type: "{{property_type}}"
+            timeframe: "{{assessment_period}}"
+            
+        - tool: market-analysis
+          method: fetch_market_metrics
+          params:
+            metro: "{{metro_area}}"
+            metrics: ["vacancy", "absorption", "rent_growth"]
+            
+    - name: "Analysis"
+      steps:
+        - tool: phrase-mining
+          method: extract_market_signals
+          params:
+            corpus: "{{phase.data_collection.output}}"
+            focus: "market_indicators"
+            
+        - tool: bmad-agents
+          method: execute_story
+          params:
+            story: "market_assessment_comprehensive"
+            context: "{{accumulated_context}}"
+            
+    - name: "Synthesis"
+      steps:
+        - tool: bmad-agents
+          method: generate_assessment_report
+          params:
+            template: "executive_market_assessment"
+            data: "{{phase.analysis.output}}"
+            
+        - tool: git-mcp
+          method: commit_report
+          params:
+            repo: "intelligence-history"
+            path: "/reports/{{timestamp}}_{{metro_area}}_assessment.md"
+
+interaction_points:
+  - after: "Data Collection"
+    prompt: "Initial data collected. Would you like to adjust analysis parameters?"
+    
+  - after: "Analysis"
+    prompt: "Analysis complete. Any specific areas to deep-dive?"
+    
+  - before: "Synthesis"
+    prompt: "Ready to generate report. Preferred format and distribution?"
+
+success_criteria:
+  - data_coverage: "> 80%"
+  - confidence_score: "> 0.7"
+  - processing_time: "< 300 seconds"
+
+---
+# templates/competitive-analysis.yaml
+name: "Competitive Intelligence Session"
+description: "Analyze competitive landscape and market positioning"
+version: "1.0.0"
+
+initialization:
+  required_params:
+    - target_markets
+    - competitor_set
+    - analysis_depth
+    
+  context_loading:
+    - source: git-mcp://market-data-repo
+      paths:
+        - "/competitive-intelligence/"
+        - "/market-players/"
+    
+  tool_preparation:
+    - tool: reddit-harvester
+      action: configure_competitor_monitoring
+      params:
+        competitors: "{{competitor_set}}"
+
+workflow:
+  phases:
+    - name: "Competitor Discovery"
+      steps:
+        - tool: reddit-harvester
+          method: search_competitor_mentions
+          params:
+            competitors: "{{competitor_set}}"
+            markets: "{{target_markets}}"
+            depth: "{{analysis_depth}}"
+            
+        - tool: phrase-mining
+          method: extract_competitor_terms
+          params:
+            focus: "competitive_advantages"
+            
+    - name: "Comparative Analysis"
+      steps:
+        - tool: market-analysis
+          method: benchmark_competitors
+          params:
+            metrics: ["market_share", "growth_rate", "customer_sentiment"]
+            
+        - tool: bmad-agents
+          method: execute_story
+          params:
+            story: "competitive_positioning"
+            
+    - name: "Strategic Insights"
+      steps:
+        - tool: bmad-agents
+          method: identify_opportunities
+          params:
+            gaps: "{{phase.comparative_analysis.gaps}}"
+            strengths: "{{phase.comparative_analysis.strengths}}"
+            
+        - tool: bmad-agents
+          method: generate_strategy_report
+
+interaction_points:
+  - after: "Competitor Discovery"
+    prompt: "Found {{count}} competitor mentions. Add any missing competitors?"
+    
+  - during: "Comparative Analysis"
+    prompt: "Interesting pattern detected in {{area}}. Investigate further?"
+
+output_artifacts:
+  - competitive_landscape_map
+  - opportunity_matrix
+  - strategic_recommendations
+  - executive_briefing
+
+---
+# templates/location-intelligence.yaml
+name: "Location Intelligence Deep Dive"
+description: "Geographic and demographic analysis for location decisions"
+version: "1.0.0"
+
+initialization:
+  required_params:
+    - target_locations
+    - radius_miles
+    - decision_criteria
+    
+  context_loading:
+    - source: git-mcp://market-data-repo
+      paths:
+        - "/geographic-data/"
+        - "/demographic-profiles/"
+
+workflow:
+  phases:
+    - name: "Geographic Data Collection"
+      steps:
+        - tool: geo-intelligence
+          method: collect_location_data
+          params:
+            locations: "{{target_locations}}"
+            radius: "{{radius_miles}}"
+            data_types: ["demographics", "traffic", "competition", "amenities"]
+            
+        - tool: reddit-harvester
+          method: harvest_local_discussions
+          params:
+            locations: "{{target_locations}}"
+            keywords: ["development", "construction", "neighborhood"]
+            
+    - name: "Spatial Analysis"
+      steps:
+        - tool: geo-intelligence
+          method: calculate_trade_areas
+          
+        - tool: geo-intelligence
+          method: analyze_accessibility
+          params:
+            transport_modes: ["car", "public", "walk"]
+            
+        - tool: market-analysis
+          method: estimate_demand
+          params:
+            methodology: "gravity_model"
+            
+    - name: "Location Scoring"
+      steps:
+        - tool: bmad-agents
+          method: execute_story
+          params:
+            story: "location_evaluation"
+            criteria: "{{decision_criteria}}"
+            
+        - tool: geo-intelligence
+          method: generate_heat_maps
+          
+        - tool: bmad-agents
+          method: rank_locations
+
+interaction_points:
+  - after: "Geographic Data Collection"
+    prompt: "Data collected for {{count}} locations. Adjust search radius?"
+    
+  - before: "Location Scoring"
+    prompt: "Ready to score. Confirm or adjust weighting criteria?"
+
+output_artifacts:
+  - location_scorecards
+  - trade_area_maps
+  - demographic_reports
+  - site_selection_matrix
+
+---
+# templates/vertical-analysis.yaml
+name: "Vertical Market Analysis"
+description: "Deep analysis of specific CRE verticals"
+version: "1.0.0"
+
+initialization:
+  required_params:
+    - vertical_type  # office, retail, industrial, multifamily
+    - geographic_scope
+    - time_horizon
+    
+  context_loading:
+    - source: git-mcp://market-data-repo
+      paths:
+        - "/verticals/{{vertical_type}}/"
+        - "/industry-reports/{{vertical_type}}/"
+
+workflow:
+  phases:
+    - name: "Vertical-Specific Data Collection"
+      steps:
+        - tool: reddit-harvester
+          method: harvest_vertical_discussions
+          params:
+            vertical: "{{vertical_type}}"
+            specialized_terms: "{{vertical.lexicon}}"
+            
+        - tool: market-analysis
+          method: fetch_vertical_metrics
+          params:
+            vertical: "{{vertical_type}}"
+            metrics: "{{vertical.kpi_set}}"
+            
+    - name: "Trend Analysis"
+      steps:
+        - tool: phrase-mining
+          method: identify_emerging_trends
+          params:
+            vertical_context: "{{vertical_type}}"
+            
+        - tool: bmad-agents
+          method: analyze_vertical_dynamics
+          params:
+            factors: ["demand_drivers", "supply_pipeline", "regulatory_changes"]
+            
+    - name: "Opportunity Identification"
+      steps:
+        - tool: market-analysis
+          method: identify_market_gaps
+          
+        - tool: bmad-agents
+          method: generate_vertical_opportunities
+          params:
+            risk_tolerance: "moderate"
+            investment_horizon: "{{time_horizon}}"
+
+vertical_configurations:
+  office:
+    lexicon: ["class a", "sublease", "hybrid", "amenities", "tpo"]
+    kpi_set: ["vacancy", "sublease_availability", "tenant_improvements"]
+    
+  retail:
+    lexicon: ["foot traffic", "sales psf", "anchor", "inline", "pad"]
+    kpi_set: ["sales_per_sqft", "occupancy_cost", "traffic_counts"]
+    
+  industrial:
+    lexicon: ["clear height", "dock doors", "rail", "last mile"]
+    kpi_set: ["availability_rate", "net_absorption", "construction_pipeline"]
+    
+  multifamily:
+    lexicon: ["occupancy", "rent_growth", "concessions", "amenities"]
+    kpi_set: ["occupancy_rate", "rent_growth", "turnover", "noi"]
+
+---
+# templates/weekly-intelligence-brief.yaml
+name: "Weekly Intelligence Brief"
+description: "Automated weekly summary of CRE intelligence"
+version: "1.0.0"
+
+initialization:
+  schedule: "weekly"
+  auto_execute: true
+  
+  context_loading:
+    - source: git-mcp://intelligence-history
+      query: "type:weekly_brief AND recent:7d"
+
+workflow:
+  phases:
+    - name: "Data Aggregation"
+      parallel: true
+      steps:
+        - tool: reddit-harvester
+          method: get_weekly_highlights
+          
+        - tool: market-analysis
+          method: weekly_market_summary
+          
+        - tool: phrase-mining
+          method: trending_terms_weekly
+          
+    - name: "Analysis and Synthesis"
+      steps:
+        - tool: bmad-agents
+          method: synthesize_weekly_intelligence
+          params:
+            template: "executive_weekly_brief"
+            
+        - tool: bmad-agents
+          method: identify_action_items
+          
+    - name: "Distribution"
+      steps:
+        - tool: bmad-agents
+          method: format_brief
+          params:
+            formats: ["email", "pdf", "dashboard"]
+            
+        - tool: git-mcp
+          method: archive_brief
+          params:
+            path: "/briefs/weekly/{{date}}.md"
+
+automation:
+  triggers:
+    - schedule: "0 9 * * MON"  # Every Monday at 9 AM
+    - event: "manual_request"
+    
+  distribution:
+    email:
+      recipients: ["team@company.com"]
+      subject: "CRE Intelligence Brief - Week of {{date}}"
+    
+    slack:
+      channel: "#cre-intelligence"
+      format: "summary"
+
+sections:
+  - market_movements
+  - trending_discussions
+  - emerging_opportunities
+  - risk_alerts
+  - competitive_updates
+  - upcoming_events
+
+---
+# templates/backfill-historical.yaml  
+name: "Historical Data Backfill"
+description: "Backfill historical Reddit data for comprehensive coverage"
+version: "1.0.0"
+
+initialization:
+  required_params:
+    - start_date
+    - end_date
+    - target_subreddits
+    - priority_terms
+    
+  validation:
+    - check: "date_range_valid"
+      condition: "start_date < end_date"
+    - check: "date_range_reasonable"
+      condition: "date_range < 365 days"
+
+workflow:
+  phases:
+    - name: "Coverage Analysis"
+      steps:
+        - tool: market-analysis
+          method: identify_data_gaps
+          params:
+            date_range: ["{{start_date}}", "{{end_date}}"]
+            
+        - tool: bmad-agents
+          method: prioritize_backfill_targets
+          params:
+            criteria: ["data_importance", "gap_size", "resource_cost"]
+            
+    - name: "Historical Harvesting"
+      chunked: true
+      chunk_size: "7 days"
+      steps:
+        - tool: reddit-harvester
+          method: harvest_historical
+          params:
+            subreddits: "{{target_subreddits}}"
+            date_range: "{{chunk.date_range}}"
+            sort_strategy: "dual"
+            
+        - tool: phrase-mining
+          method: process_historical_batch
+          params:
+            maintain_temporal_order: true
+            
+    - name: "Validation and Integration"
+      steps:
+        - tool: bmad-agents
+          method: validate_historical_data
+          params:
+            quality_checks: ["completeness", "consistency", "accuracy"]
+            
+        - tool: market-analysis
+          method: integrate_historical_data
+          params:
+            deduplication: true
+            conflict_resolution: "newest_wins"
+            
+        - tool: git-mcp
+          method: commit_backfill_results
+          params:
+            tag: "backfill_{{timestamp}}"
+
+progress_tracking:
+  report_interval: "per_chunk"
+  metrics:
+    - chunks_completed
+    - posts_processed
+    - gaps_filled
+    - quality_score
+    
+error_handling:
+  retry_strategy:
+    max_attempts: 3
+    backoff: "exponential"
+    
+  partial_failure:
+    action: "continue_with_gaps"
+    log_level: "warning"
+
+output:
+  summary_report: true
+  gap_analysis: true
+  quality_metrics: true

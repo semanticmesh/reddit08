@@ -1,0 +1,872 @@
+# docker-compose.yml
+# Complete Docker Compose configuration for CRE Intelligence Platform
+version: '3.8'
+
+services:
+  # Database Services
+  postgres:
+    image: postgres:15-alpine
+    container_name: cre-postgres
+    environment:
+      POSTGRES_DB: cre_intelligence
+      POSTGRES_USER: ${POSTGRES_USER:-cre_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cre_password}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=en_US.UTF-8"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./deployment/init-scripts:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cre_user -d cre_intelligence"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cre-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: cre-redis
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cre-network
+
+  # Application Services
+  fastapi-mcp:
+    build:
+      context: .
+      dockerfile: deployment/Dockerfile.fastapi
+      args:
+        PYTHON_VERSION: "3.9"
+    container_name: cre-fastapi-mcp
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-cre_user}:${POSTGRES_PASSWORD:-cre_password}@postgres:5432/cre_intelligence
+      REDIS_URL: redis://redis:6379/0
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      APIFY_API_KEY: ${APIFY_API_KEY}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./mcp:/app/mcp
+      - ./data:/app/data
+      - ./config:/app/config
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - cre-network
+    restart: unless-stopped
+
+  native-mcp:
+    build:
+      context: .
+      dockerfile: deployment/Dockerfile.native-mcp
+    container_name: cre-native-mcp
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-cre_user}:${POSTGRES_PASSWORD:-cre_password}@postgres:5432/cre_intelligence
+      REDIS_URL: redis://redis:6379/1
+      MCP_PORT: 8001
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./mcp:/app/mcp
+      - ./data:/app/data
+      - ./config:/app/config
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - cre-network
+    restart: unless-stopped
+
+  # Goose Orchestrator (if containerized)
+  goose:
+    build:
+      context: .
+      dockerfile: deployment/Dockerfile.goose
+    container_name: cre-goose
+    environment:
+      GOOSE_CONFIG_PATH: /app/config/goose
+      MCP_SERVERS: "fastapi-mcp:8000,native-mcp:8001"
+    volumes:
+      - ./config/goose:/app/config/goose
+      - ./data:/app/data
+      - ./sessions:/app/sessions
+    depends_on:
+      - fastapi-mcp
+      - native-mcp
+    networks:
+      - cre-network
+    restart: unless-stopped
+
+  # Task Queue
+  celery-worker:
+    build:
+      context: .
+      dockerfile: deployment/Dockerfile.fastapi
+    container_name: cre-celery-worker
+    command: celery -A mcp.tasks worker --loglevel=info --concurrency=4
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-cre_user}:${POSTGRES_PASSWORD:-cre_password}@postgres:5432/cre_intelligence
+      REDIS_URL: redis://redis:6379/2
+      CELERY_BROKER_URL: redis://redis:6379/3
+      CELERY_RESULT_BACKEND: redis://redis:6379/4
+    volumes:
+      - ./mcp:/app/mcp
+      - ./data:/app/data
+      - ./logs:/app/logs
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - cre-network
+    restart: unless-stopped
+
+  celery-beat:
+    build:
+      context: .
+      dockerfile: deployment/Dockerfile.fastapi
+    container_name: cre-celery-beat
+    command: celery -A mcp.tasks beat --loglevel=info
+    environment:
+      REDIS_URL: redis://redis:6379/2
+      CELERY_BROKER_URL: redis://redis:6379/3
+    volumes:
+      - ./mcp:/app/mcp
+      - ./data:/app/data
+    depends_on:
+      - redis
+    networks:
+      - cre-network
+    restart: unless-stopped
+
+  # Monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: cre-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    networks:
+      - cre-network
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: cre-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_INSTALL_PLUGINS: grafana-piechart-panel
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+    depends_on:
+      - prometheus
+    networks:
+      - cre-network
+    restart: unless-stopped
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: cre-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deployment/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./deployment/ssl:/etc/nginx/ssl:ro
+      - nginx_cache:/var/cache/nginx
+    depends_on:
+      - fastapi-mcp
+      - grafana
+    networks:
+      - cre-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  nginx_cache:
+    driver: local
+
+networks:
+  cre-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+---
+# docker-compose.override.yml
+# Development overrides
+version: '3.8'
+
+services:
+  fastapi-mcp:
+    build:
+      target: development
+    command: uvicorn mcp.fastapi_app.main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      DEBUG: "true"
+      ENVIRONMENT: "development"
+    volumes:
+      - .:/app  # Mount entire project for hot reload
+
+  # Development tools
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: cre-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@cre.local
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    networks:
+      - cre-network
+
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: cre-redis-commander
+    environment:
+      REDIS_HOSTS: local:redis:6379
+    ports:
+      - "8081:8081"
+    networks:
+      - cre-network
+
+---
+# docker-compose.prod.yml
+# Production configuration
+version: '3.8'
+
+services:
+  fastapi-mcp:
+    image: ${DOCKER_REGISTRY}/cre-fastapi-mcp:${VERSION:-latest}
+    deploy:
+      replicas: 3
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+    environment:
+      ENVIRONMENT: production
+      DEBUG: "false"
+      LOG_LEVEL: WARNING
+
+  postgres:
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - postgres_backup:/backup
+
+  redis:
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    deploy:
+      replicas: 1
+
+---
+# deployment/Dockerfile.fastapi
+# Multi-stage Dockerfile for FastAPI MCP Server
+FROM python:3.9-slim as base
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy requirements
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Development stage
+FROM base as development
+
+# Install development dependencies
+RUN pip install --no-cache-dir \
+    pytest \
+    pytest-asyncio \
+    pytest-cov \
+    black \
+    flake8 \
+    mypy \
+    ipython
+
+# Copy application code
+COPY . .
+
+# Create non-root user
+RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+USER appuser
+
+CMD ["uvicorn", "mcp.fastapi_app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+# Production stage
+FROM base as production
+
+# Copy only necessary files
+COPY mcp /app/mcp
+COPY config /app/config
+COPY scripts /app/scripts
+
+# Create directories
+RUN mkdir -p /app/data /app/logs && \
+    chown -R 1000:1000 /app
+
+# Create non-root user
+RUN useradd -m -u 1000 appuser
+USER appuser
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/ || exit 1
+
+EXPOSE 8000
+
+CMD ["gunicorn", "mcp.fastapi_app.main:app", \
+     "--workers", "4", \
+     "--worker-class", "uvicorn.workers.UvicornWorker", \
+     "--bind", "0.0.0.0:8000", \
+     "--access-logfile", "-", \
+     "--error-logfile", "-"]
+
+---
+# deployment/Dockerfile.native-mcp
+# Dockerfile for Native MCP Server
+FROM python:3.9-slim
+
+WORKDIR /app
+
+# Install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application
+COPY mcp /app/mcp
+COPY config /app/config
+
+# Create user
+RUN useradd -m -u 1000 appuser && \
+    mkdir -p /app/data /app/logs && \
+    chown -R appuser:appuser /app
+
+USER appuser
+
+EXPOSE 8001
+
+CMD ["python", "-m", "mcp.native_server.server", "--host", "0.0.0.0", "--port", "8001"]
+
+---
+# deployment/Dockerfile.goose
+# Dockerfile for Goose orchestrator
+FROM python:3.9-slim
+
+WORKDIR /app
+
+# Install Goose (placeholder - adjust based on actual Goose installation)
+RUN pip install --no-cache-dir goose-ai mcp-python pyyaml
+
+# Copy configuration
+COPY config/goose /app/config/goose
+COPY bmad /app/bmad
+
+# Create user
+RUN useradd -m -u 1000 gooseuser && \
+    mkdir -p /app/sessions /app/data && \
+    chown -R gooseuser:gooseuser /app
+
+USER gooseuser
+
+CMD ["goose", "session", "start", "--config", "/app/config/goose/config.yaml"]
+
+---
+# deployment/nginx.conf
+# Nginx configuration for reverse proxy
+events {
+    worker_connections 1024;
+}
+
+http {
+    upstream fastapi {
+        least_conn;
+        server fastapi-mcp:8000 max_fails=3 fail_timeout=30s;
+    }
+
+    upstream grafana {
+        server grafana:3000;
+    }
+
+    # Cache configuration
+    proxy_cache_path /var/cache/nginx levels=1:2 keys_zone=api_cache:10m 
+                     max_size=1g inactive=60m use_temp_path=off;
+
+    # Rate limiting
+    limit_req_zone $binary_remote_addr zone=api_limit:10m rate=10r/s;
+    limit_req_zone $binary_remote_addr zone=auth_limit:10m rate=5r/m;
+
+    server {
+        listen 80;
+        server_name cre-intelligence.local;
+        
+        # Redirect to HTTPS
+        return 301 https://$server_name$request_uri;
+    }
+
+    server {
+        listen 443 ssl http2;
+        server_name cre-intelligence.local;
+
+        # SSL configuration
+        ssl_certificate /etc/nginx/ssl/cert.pem;
+        ssl_certificate_key /etc/nginx/ssl/key.pem;
+        ssl_protocols TLSv1.2 TLSv1.3;
+        ssl_ciphers HIGH:!aNULL:!MD5;
+
+        # Security headers
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-XSS-Protection "1; mode=block" always;
+        add_header Strict-Transport-Security "max-age=31536000" always;
+
+        # API endpoints
+        location /api/ {
+            limit_req zone=api_limit burst=20 nodelay;
+            
+            proxy_pass http://fastapi/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            
+            # Caching for GET requests
+            proxy_cache api_cache;
+            proxy_cache_valid 200 10m;
+            proxy_cache_key "$scheme$request_method$host$request_uri";
+            add_header X-Cache-Status $upstream_cache_status;
+        }
+
+        # WebSocket for MCP
+        location /mcp {
+            proxy_pass http://native-mcp:8001;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_read_timeout 86400;
+        }
+
+        # Grafana
+        location /grafana/ {
+            proxy_pass http://grafana/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+        }
+
+        # Health check endpoint
+        location /health {
+            access_log off;
+            add_header Content-Type text/plain;
+            return 200 'healthy';
+        }
+    }
+}
+
+---
+# kubernetes/namespace.yaml
+# Kubernetes namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cre-intelligence
+
+---
+# kubernetes/configmap.yaml
+# Configuration ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cre-config
+  namespace: cre-intelligence
+data:
+  settings.yml: |
+    app:
+      name: CRE Intelligence Platform
+      version: 1.0.0
+      environment: production
+    
+    data:
+      base_path: /data
+      
+    processing:
+      batch_size: 1000
+      max_workers: 4
+
+---
+# kubernetes/secret.yaml
+# Secrets (base64 encoded in real deployment)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cre-secrets
+  namespace: cre-intelligence
+type: Opaque
+stringData:
+  POSTGRES_PASSWORD: "your-postgres-password"
+  REDIS_PASSWORD: "your-redis-password"
+  OPENAI_API_KEY: "your-openai-key"
+  APIFY_API_KEY: "your-apify-key"
+
+---
+# kubernetes/deployment-fastapi.yaml
+# FastAPI MCP Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fastapi-mcp
+  namespace: cre-intelligence
+  labels:
+    app: fastapi-mcp
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: fastapi-mcp
+  template:
+    metadata:
+      labels:
+        app: fastapi-mcp
+    spec:
+      containers:
+      - name: fastapi-mcp
+        image: cre-intelligence/fastapi-mcp:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: cre-secrets
+              key: DATABASE_URL
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: cre-secrets
+              key: REDIS_URL
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: cre-secrets
+              key: OPENAI_API_KEY
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "2000m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        volumeMounts:
+        - name: config
+          mountPath: /app/config
+        - name: data
+          mountPath: /app/data
+      volumes:
+      - name: config
+        configMap:
+          name: cre-config
+      - name: data
+        persistentVolumeClaim:
+          claimName: cre-data-pvc
+
+---
+# kubernetes/service.yaml
+# Service definitions
+apiVersion: v1
+kind: Service
+metadata:
+  name: fastapi-mcp
+  namespace: cre-intelligence
+spec:
+  selector:
+    app: fastapi-mcp
+  ports:
+  - port: 8000
+    targetPort: 8000
+  type: ClusterIP
+
+---
+# kubernetes/ingress.yaml
+# Ingress configuration
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cre-ingress
+  namespace: cre-intelligence
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  tls:
+  - hosts:
+    - cre-intelligence.example.com
+    secretName: cre-tls
+  rules:
+  - host: cre-intelligence.example.com
+    http:
+      paths:
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: fastapi-mcp
+            port:
+              number: 8000
+      - path: /grafana
+        pathType: Prefix
+        backend:
+          service:
+            name: grafana
+            port:
+              number: 3000
+
+---
+# kubernetes/pvc.yaml
+# Persistent Volume Claims
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cre-data-pvc
+  namespace: cre-intelligence
+spec:
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: 100Gi
+  storageClassName: standard
+
+---
+# kubernetes/hpa.yaml
+# Horizontal Pod Autoscaler
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: fastapi-mcp-hpa
+  namespace: cre-intelligence
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: fastapi-mcp
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+
+---
+# deployment/terraform/main.tf
+# Terraform configuration for AWS deployment
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+  
+  backend "s3" {
+    bucket = "cre-intelligence-terraform-state"
+    key    = "prod/terraform.tfstate"
+    region = "us-east-1"
+  }
+}
+
+provider "aws" {
+  region = var.aws_region
+}
+
+# VPC Configuration
+module "vpc" {
+  source = "terraform-aws-modules/vpc/aws"
+  
+  name = "cre-intelligence-vpc"
+  cidr = "10.0.0.0/16"
+  
+  azs             = ["${var.aws_region}a", "${var.aws_region}b", "${var.aws_region}c"]
+  private_subnets = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
+  public_subnets  = ["10.0.101.0/24", "10.0.102.0/24", "10.0.103.0/24"]
+  
+  enable_nat_gateway = true
+  enable_vpn_gateway = true
+  
+  tags = {
+    Environment = var.environment
+    Project     = "CRE-Intelligence"
+  }
+}
+
+# ECS Cluster
+resource "aws_ecs_cluster" "main" {
+  name = "cre-intelligence-cluster"
+  
+  setting {
+    name  = "containerInsights"
+    value = "enabled"
+  }
+}
+
+# RDS PostgreSQL
+module "rds" {
+  source = "terraform-aws-modules/rds/aws"
+  
+  identifier = "cre-intelligence-db"
+  
+  engine            = "postgres"
+  engine_version    = "15.4"
+  instance_class    = "db.t3.medium"
+  allocated_storage = 100
+  
+  db_name  = "cre_intelligence"
+  username = "cre_admin"
+  port     = "5432"
+  
+  vpc_security_group_ids = [aws_security_group.rds.id]
+  subnet_ids            = module.vpc.private_subnets
+  
+  backup_retention_period = 30
+  backup_window          = "03:00-06:00"
+  
+  tags = {
+    Environment = var.environment
+  }
+}
+
+# ElastiCache Redis
+resource "aws_elasticache_cluster" "redis" {
+  cluster_id           = "cre-intelligence-redis"
+  engine              = "redis"
+  node_type           = "cache.t3.medium"
+  num_cache_nodes     = 1
+  parameter_group_name = "default.redis7"
+  engine_version      = "7.0"
+  port                = 6379
+  
+  subnet_group_name = aws_elasticache_subnet_group.main.name
+  security_group_ids = [aws_security_group.redis.id]
+}
+
+# S3 Buckets
+resource "aws_s3_bucket" "data" {
+  bucket = "cre-intelligence-data-${var.environment}"
+  
+  tags = {
+    Environment = var.environment
+  }
+}
+
+resource "aws_s3_bucket_versioning" "data" {
+  bucket = aws_s3_bucket.data.id
+  
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+# CloudWatch Log Groups
+resource "aws_cloudwatch_log_group" "app" {
+  name              = "/ecs/cre-intelligence"
+  retention_in_days = 30
+}
+
+# Application Load Balancer
+resource "aws_lb" "main" {
+  name               = "cre-intelligence-alb"
+  internal           = false
+  load_balancer_type = "application"
+  security_groups    = [aws_security_group.alb.id]
+  subnets           = module.vpc.public_subnets
+  
+  enable_deletion_protection = true
+  enable_http2              = true
+  
+  tags = {
+    Environment = var.environment
+  }
+}
