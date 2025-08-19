@@ -1,0 +1,109 @@
+# .pre-commit-config.yaml
+# Pre-commit hooks for code quality and consistency
+
+repos:
+  # Code formatting
+  - repo: https://github.com/psf/black
+    rev: 23.11.0
+    hooks:
+      - id: black
+        language_version: python3.9
+        args: [--line-length=88, --target-version=py39]
+        exclude: ^(docs/|tests/.*\.py$|scripts/.*\.py$)
+
+  # Import sorting
+  - repo: https://github.com/pycqa/isort
+    rev: 5.12.0
+    hooks:
+      - id: isort
+        args: [--profile=black, --line-length=88]
+        exclude: ^(docs/|tests/.*\.py$|scripts/.*\.py$)
+
+  # Linting
+  - repo: https://github.com/pycqa/flake8
+    rev: 6.1.0
+    hooks:
+      - id: flake8
+        args: [--max-line-length=88, --extend-ignore=E203,W503]
+        exclude: ^(docs/|tests/.*\.py$|scripts/.*\.py$)
+
+  # Type checking
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.7.1
+    hooks:
+      - id: mypy
+        additional_dependencies: [types-requests, types-redis, types-PyYAML]
+        args: [--ignore-missing-imports, --disallow-untyped-defs]
+        exclude: ^(docs/|tests/.*\.py$|scripts/.*\.py$)
+
+  # Security linting
+  - repo: https://github.com/pycqa/bandit
+    rev: 1.7.5
+    hooks:
+      - id: bandit
+        args: [-r, -f, json]
+        exclude: ^(docs/|tests/.*\.py$|scripts/.*\.py$)
+
+  # YAML linting
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.29.0
+    hooks:
+      - id: yamllint
+        args: [-d, relaxed]
+        files: \.(yaml|yml)$
+
+  # JSON linting
+  - repo: https://github.com/kevinoid/pre-commit-hooks
+    rev: v0.12.0
+    hooks:
+      - id: jsonlint
+        files: \.(json)$
+
+  # Markdown linting
+  - repo: https://github.com/executablebooks/mdformat
+    rev: 0.7.17
+    hooks:
+      - id: mdformat
+        additional_dependencies: [mdformat-gfm, mdformat-footnote]
+
+  # Check for added large files
+  - repo: https://github.com/antonbabenko/pre-commit-hooks
+    rev: v1.3.4
+    hooks:
+      - id: check-added-large-files
+        args: [--maxkb=1000]
+
+  # Check for secrets
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.4.0
+    hooks:
+      - id: detect-secrets
+        args: ['--baseline', '.secrets.baseline']
+        exclude: ^(docs/|\.env\.example$)
+
+  # Check for merge conflicts
+  - repo: https://github.com/Riverside-Healthcare/djLint
+    rev: v1.28.1
+    hooks:
+      - id: djlint
+        args: [--reformat, --profile=django]
+        files: \.html$
+
+  # Check for trailing whitespace
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: [--fix=lf]
+
+# Default language version
+default_language_version:
+  python: python3.9
+
+# Default stages
+default_stages: [commit]
+
+# Minimum pre-commit version
+minimum_pre_commit_version: '3.5.0'

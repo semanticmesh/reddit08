@@ -1,0 +1,29 @@
+{
+  "searchQueries": [
+    "commercial",
+    "CRE",
+    "rental",
+    "property",
+    "rent",
+    "tenant",
+    "lease"
+  ],
+  "subreddits": [
+    "r/commercialrealestate",
+    "r/nyc",
+    "r/sf",
+    "r/chicago"
+  ],
+  "dateFrom": "2023-01-01",
+  "dateTo": "2023-12-31",
+  "maxItems": 1000,
+  "maxPostAge": 365,
+  "sort": "relevance",
+  "skipComments": false,
+  "startUrls": [
+    "https://www.reddit.com/r/commercialrealestate/search?sort=relevance&restrict_sr=on&t=all",
+    "https://www.reddit.com/r/nyc/search?sort=relevance&restrict_sr=on&t=all",
+    "https://www.reddit.com/r/sf/search?sort=relevance&restrict_sr=on&t=all",
+    "https://www.reddit.com/r/chicago/search?sort=relevance&restrict_sr=on&t=all"
+  ]
+}

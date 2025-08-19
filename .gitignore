@@ -86,6 +86,9 @@ celerybeat-schedule
 
 # Environments
 .env
+.env.local
+.env.*.local
+.secrets.baseline
 .venv
 env/
 venv/
@@ -121,3 +124,43 @@ config/
 *.tmp
 .DS_Store
 Thumbs.db
+
+# Development tools
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Build and distribution
+build/
+dist/
+*.egg-info/
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Documentation
+docs/build/
+docs/site/
+
+# Performance profiling
+profile_output.prof
+*.prof
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db

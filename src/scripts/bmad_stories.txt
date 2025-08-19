@@ -1,0 +1,1483 @@
+# BMAD Stories Directory Structure
+# Location: bmad/stories/
+
+---
+# bmad/stories/01_query_architect.yml
+# Technique 1: Iterative JSON Refinement / Payload Optimization
+
+id: CRE-SI-01
+name: Query Architect
+epic: Payload Optimization
+technique: Iterative JSON Refinement
+role: QueryArchitect
+priority: P0
+
+description: |
+  Design and iteratively refine Apify Actor JSON payloads for optimal Reddit API utilization.
+  Compress boolean clauses, eliminate redundancy, and ensure comprehensive coverage while
+  respecting URL length constraints and API rate limits.
+
+context:
+  sources:
+    - path: docs/project.md
+      sections: ["1.2 Iterative JSON refinement", "Section 2: Techniques"]
+    - path: config/filters.yml
+      purpose: keyword and filter definitions
+    - path: config/cities.yml
+      purpose: target subreddits and metro definitions
+    - path: data/processed/payloads/
+      purpose: historical payload performance data
+      
+  constraints:
+    - reddit_url_length: 512
+    - max_boolean_clauses: 10
+    - prefer_per_subreddit_urls: true
+    - api_rate_limit: 60/minute
+    
+  dependencies:
+    - git-mcp: for accessing historical payloads
+    - fastapi-mcp: for payload optimization endpoint
+
+tasks:
+  setup:
+    - action: load_historical_payloads
+      source: data/processed/payloads/
+      analyze: performance_metrics
+      
+  design:
+    - action: analyze_keyword_coverage
+      input: config/filters.yml
+      output: keyword_matrix
+      
+    - action: design_minimal_boolean_clauses
+      constraints:
+        - max_length: 256
+        - operator_preference: ["OR", "AND", "NOT"]
+      strategy: compression_first
+      
+  optimization:
+    - action: iterative_refinement
+      rounds: 3
+      metrics:
+        - url_length
+        - redundancy_score
+        - coverage_completeness
+        - api_efficiency
+      per_round:
+        - measure_current_state
+        - apply_optimization_rules
+        - validate_improvements
+        
+  generation:
+    - action: generate_reddit_actor_payloads
+      format: apify_json
+      variations:
+        - sort: relevance
+        - sort: new
+        - timeframes: [daily, weekly, monthly]
+      per_subreddit: true
+      
+  validation:
+    - action: validate_payload_integrity
+      checks:
+        - json_schema_valid
+        - url_length_compliant
+        - coverage_adequate
+        - no_redundant_terms
+
+outputs:
+  required:
+    - path: data/processed/payloads/{{timestamp}}/
+      files:
+        - optimized_payload.json
+        - per_subreddit_payloads/
+        - optimization_report.json
+        
+  metrics:
+    - payload_size_reduction: "percentage"
+    - coverage_improvement: "percentage"
+    - estimated_api_calls: "count"
+    - url_compliance: "boolean"
+
+acceptance_criteria:
+  functional:
+    - all_payloads_under_512_chars: true
+    - boolean_clauses_optimized: true
+    - per_subreddit_urls_generated: true
+    - redundancy_eliminated: "< 10%"
+    
+  performance:
+    - optimization_time: "< 30 seconds"
+    - payload_generation: "< 10 seconds"
+    
+  quality:
+    - coverage_score: "> 0.9"
+    - compression_ratio: "> 0.3"
+    - validation_passing: "100%"
+
+monitoring:
+  alerts:
+    - condition: "payload_size > 512"
+      severity: critical
+      action: block_deployment
+      
+    - condition: "coverage_score < 0.8"
+      severity: warning
+      action: request_review
+      
+  metrics_tracking:
+    - payload_efficiency_over_time
+    - coverage_gaps_identified
+    - optimization_success_rate
+
+execution_notes: |
+  This story integrates with Goose recipes for intelligent payload optimization.
+  The QueryArchitect should maintain awareness of Reddit API changes and adjust
+  strategies accordingly. Consider A/B testing different payload variations
+  to measure actual harvest effectiveness.
+
+---
+# bmad/stories/02_phrase_miner.yml
+# Technique 2: TF-IDF Phrase Mining with Classification
+
+id: CRE-SI-02
+name: Phrase Miner
+epic: Vocabulary Enhancement
+technique: TF-IDF Analysis with Domain Classification
+role: PhraseMiner
+priority: P0
+
+description: |
+  Extract high-value n-grams from harvested Reddit content using TF-IDF analysis.
+  Classify terms into domain categories (financial, legal, operational, market, development)
+  and identify emerging terminology for enhanced targeting.
+
+context:
+  sources:
+    - path: data/raw/*.jsonl
+      purpose: raw reddit posts for analysis
+    - path: data/lexicon/
+      purpose: existing vocabulary and classifications
+    - path: docs/domain-ontology.md
+      purpose: CRE domain classification rules
+      
+  parameters:
+    ngram_range: [1, 2, 3]
+    min_document_frequency: 2
+    max_document_frequency: 0.8
+    top_k_terms: 100
+    
+  dependencies:
+    - sklearn: TfidfVectorizer
+    - pandas: data manipulation
+    - fastapi-mcp: phrase mining endpoint
+
+tasks:
+  data_preparation:
+    - action: load_corpus
+      source: data/raw/*.jsonl
+      timeframe: last_30_days
+      combine_fields: ["title", "selftext"]
+      
+    - action: preprocess_text
+      steps:
+        - lowercase_conversion
+        - remove_urls
+        - remove_special_chars
+        - expand_contractions
+        
+  feature_extraction:
+    - action: run_tfidf_analysis
+      config:
+        ngram_range: "{{ngram_range}}"
+        max_features: 5000
+        stop_words: english_plus_custom
+        token_pattern: '\b[a-zA-Z][a-zA-Z]+\b'
+      output: tfidf_matrix
+      
+    - action: extract_top_terms
+      method: average_tfidf_score
+      count: "{{top_k_terms}}"
+      
+  classification:
+    - action: classify_terms_by_domain
+      categories:
+        financial:
+          keywords: [cam, nnn, triple net, opex, capex, roi, cap rate]
+          weight: 1.5
+        legal:
+          keywords: [lease, estoppel, snda, subordination, landlord, tenant]
+          weight: 1.5
+        operational:
+          keywords: [hvac, maintenance, janitorial, utilities, parking]
+          weight: 1.0
+        market:
+          keywords: [vacancy, absorption, pipeline, submarket, comps]
+          weight: 1.2
+        development:
+          keywords: [entitlement, zoning, permits, site plan, variance]
+          weight: 1.3
+          
+  trend_analysis:
+    - action: identify_emerging_terms
+      method: temporal_comparison
+      baseline: previous_month
+      threshold: 0.3
+      
+    - action: calculate_term_velocity
+      window: 7_days
+      metric: frequency_change_rate
+      
+  lexicon_update:
+    - action: append_to_vocabulary
+      target: data/lexicon/vocab_{{month}}.json
+      format:
+        terms: ranked_list
+        classifications: category_mapping
+        emergence_scores: velocity_metrics
+        
+    - action: generate_domain_report
+      sections:
+        - top_terms_by_category
+        - emerging_terminology
+        - deprecated_terms
+        - cross_domain_terms
+
+outputs:
+  required:
+    - path: data/lexicon/vocab_{{timestamp}}.json
+      schema:
+        terms: "array"
+        classified_terms: "object"
+        emerging_terms: "array"
+        metadata: "object"
+        
+  analytics:
+    - total_terms_extracted: "count"
+    - terms_per_category: "distribution"
+    - lexical_diversity: "score"
+    - emergence_rate: "percentage"
+
+acceptance_criteria:
+  functional:
+    - tfidf_analysis_complete: true
+    - terms_classified: "> 80%"
+    - lexicon_updated: true
+    - emerging_terms_identified: true
+    
+  quality:
+    - precision_at_50: "> 0.7"
+    - classification_accuracy: "> 0.85"
+    - term_relevance_score: "> 0.6"
+    
+  performance:
+    - processing_time: "< 60 seconds"
+    - memory_usage: "< 2GB"
+
+monitoring:
+  scheduled_execution:
+    frequency: weekly
+    trigger: sunday_midnight
+    
+  quality_checks:
+    - manual_review_sample: 50
+    - inter_rater_agreement: "> 0.8"
+    
+  alerts:
+    - condition: "new_terms_count > 100"
+      action: trigger_manual_review
+    - condition: "classification_accuracy < 0.7"
+      action: retrain_classifiers
+
+integration_points:
+  - goose_recipe: tfidf_analyzer.yaml
+  - mcp_endpoint: /mine_phrases
+  - git_commit: auto_commit_lexicon
+
+---
+# bmad/stories/03_filter_enforcer.yml
+# Technique 3: Client-Side 6-Stage Filtering Pipeline
+
+id: CRE-SI-03
+name: Filter Enforcer
+epic: Quality Control
+technique: Multi-Stage Client-Side Filtering
+role: FilterEnforcer
+priority: P0
+
+description: |
+  Implement comprehensive 6-stage filtering pipeline to ensure data quality
+  and relevance. Stages include temporal, keyword, quality, semantic,
+  geographic, and deduplication filters.
+
+context:
+  sources:
+    - path: data/raw/*.jsonl
+      purpose: unfiltered reddit posts
+    - path: config/filters.yml
+      purpose: filter criteria and thresholds
+    - path: data/lexicon/
+      purpose: keyword vocabulary for filtering
+      
+  pipeline_stages:
+    1_temporal: date range filtering
+    2_keyword: inclusion/exclusion keywords
+    3_quality: length, score, engagement metrics
+    4_semantic: similarity to target concepts
+    5_geographic: location relevance
+    6_deduplication: remove duplicates
+    
+  dependencies:
+    - pandas: data processing
+    - sklearn: semantic similarity
+    - fastapi-mcp: filter endpoint
+
+tasks:
+  stage_1_temporal:
+    - action: apply_date_filter
+      params:
+        date_field: created_utc
+        start: "{{date_start}}"
+        end: "{{date_end}}"
+        timezone: UTC
+      log_stats: true
+      
+  stage_2_keyword:
+    - action: apply_keyword_filters
+      inclusion:
+        keywords: "{{filter_config.must_any}}"
+        logic: OR
+        case_sensitive: false
+      exclusion:
+        keywords: "{{filter_config.exclude}}"
+        logic: ANY
+      combine_fields: ["title", "selftext"]
+      
+  stage_3_quality:
+    - action: apply_quality_filters
+      thresholds:
+        min_text_length: 50
+        max_text_length: 10000
+        min_score: 1
+        min_comments: 0
+      remove_deleted: true
+      remove_removed: true
+      
+  stage_4_semantic:
+    - action: calculate_semantic_similarity
+      method: tfidf_cosine
+      reference_text: "{{target_concepts}}"
+      threshold: 0.4
+      vectorizer_params:
+        max_features: 1000
+        stop_words: english
+        
+  stage_5_geographic:
+    - action: filter_by_geography
+      location_detection:
+        - subreddit_name
+        - text_mentions
+        - user_flair
+      target_locations: "{{metro_areas}}"
+      include_general_cre: true
+      
+  stage_6_deduplication:
+    - action: remove_duplicates
+      strategies:
+        - exact_id_match
+        - url_match
+        - fuzzy_title_match:
+            threshold: 0.9
+        - content_hash:
+            fields: ["title", "selftext"]
+      keep: first
+      
+  scoring:
+    - action: calculate_relevance_scores
+      components:
+        keyword_density: 0.3
+        semantic_similarity: 0.3
+        quality_metrics: 0.2
+        recency: 0.2
+      normalize: true
+      
+  persistence:
+    - action: save_filtered_results
+      path: data/processed/filtered_{{timestamp}}.jsonl
+      include_scores: true
+      include_filter_metadata: true
+      
+    - action: generate_filter_report
+      metrics:
+        - stage_retention_rates
+        - top_filtered_keywords
+        - quality_distribution
+        - geographic_coverage
+
+outputs:
+  required:
+    - path: data/processed/filtered_{{date_range}}.jsonl
+      columns: [id, title, selftext, subreddit, created_utc, score, relevance_score]
+      
+  statistics:
+    - initial_count: "integer"
+    - filtered_count: "integer"
+    - retention_rate: "percentage"
+    - filter_stage_stats: "object"
+    
+  quality_samples:
+    - top_5_posts: "array"
+    - random_sample_10: "array"
+
+acceptance_criteria:
+  functional:
+    - all_stages_executed: true
+    - output_file_created: true
+    - statistics_generated: true
+    
+  quality:
+    - false_positive_rate: "< 0.15"
+    - false_negative_rate: "< 0.10"
+    - relevance_score_correlation: "> 0.7"
+    
+  performance:
+    - processing_speed: "> 1000 posts/second"
+    - memory_efficiency: "< 500MB per 10k posts"
+    
+  coverage:
+    - date_coverage: "100%"
+    - keyword_coverage: "> 90%"
+    - metro_coverage: "> 95%"
+
+validation:
+  manual_audit:
+    sample_size: 50
+    reviewers: [analyst_team]
+    criteria:
+      - relevance
+      - quality
+      - completeness
+      
+  automated_checks:
+    - schema_validation
+    - score_distribution_analysis
+    - outlier_detection
+
+monitoring:
+  metrics:
+    - filter_effectiveness_by_stage
+    - false_positive_trends
+    - processing_latency
+    
+  alerts:
+    - condition: "retention_rate < 0.1"
+      message: "Filters may be too restrictive"
+    - condition: "retention_rate > 0.9"
+      message: "Filters may be too permissive"
+
+---
+# bmad/stories/04_local_intel.yml
+# Technique 4: Local-Sub Geographic Targeting
+
+id: CRE-SI-04
+name: Local Intel Scout
+epic: Geographic Expansion
+technique: Local Subreddit Discovery and Targeting
+role: LocalIntel
+priority: P1
+
+description: |
+  Identify, validate, and monitor location-specific subreddits for
+  comprehensive geographic coverage. Discover new regional communities
+  and optimize location-based intelligence gathering.
+
+context:
+  sources:
+    - path: config/cities.yml
+      purpose: current metro configurations
+    - path: data/geographic/metro_profiles/
+      purpose: metro area characteristics
+    - path: external/reddit_directory
+      purpose: subreddit discovery source
+      
+  target_metros:
+    tier_1: [nyc, sf, chicago, la, boston]
+    tier_2: [seattle, denver, austin, miami, atlanta]
+    tier_3: [portland, nashville, charlotte, phoenix]
+    
+  dependencies:
+    - geo-intelligence-mcp: location analysis
+    - reddit-api: subreddit discovery
+    - fastapi-mcp: local targeting endpoint
+
+tasks:
+  discovery:
+    - action: scan_metro_subreddits
+      per_metro:
+        - search_patterns:
+            - "r/{{metro}}"
+            - "r/{{metro}}realestate"
+            - "r/{{metro}}housing"
+            - "r/{{metro}}jobs"
+            - "r/{{metro}}business"
+        - validate_activity:
+            min_subscribers: 1000
+            min_posts_per_week: 10
+            
+    - action: identify_neighborhood_subs
+      strategy: expand_from_core
+      max_radius: 50_miles
+      min_relevance: 0.3
+      
+  validation:
+    - action: assess_subreddit_quality
+      metrics:
+        - subscriber_count
+        - post_frequency
+        - cre_relevance_score
+        - spam_ratio
+        - moderator_activity
+      thresholds:
+        min_quality_score: 0.6
+        
+    - action: sample_recent_content
+      per_subreddit:
+        sample_size: 50
+        analyze:
+          - cre_mention_rate
+          - professional_content_ratio
+          - local_focus_score
+          
+  configuration:
+    - action: update_metro_configs
+      file: config/cities.yml
+      per_metro:
+        subreddits: validated_list
+        keywords: location_specific_terms
+        heuristics:
+          rent_unit: psf_or_unit
+          market_characteristics: extracted_patterns
+          peak_activity: temporal_analysis
+          
+    - action: generate_geo_targeting_rules
+      output:
+        primary_targets: tier_1_subs
+        secondary_targets: neighborhood_subs
+        monitoring_frequency: based_on_activity
+        
+  pattern_analysis:
+    - action: analyze_regional_patterns
+      dimensions:
+        - terminology_variations
+        - pricing_conventions  
+        - market_dynamics
+        - regulatory_topics
+      per_region:
+        northeast: [nyc, boston, philly]
+        west_coast: [sf, la, seattle, portland]
+        midwest: [chicago, detroit, minneapolis]
+        south: [atlanta, miami, dallas, houston]
+        
+    - action: identify_cross_market_trends
+      correlation_analysis: true
+      lag_detection: true
+      signal_propagation: true
+      
+  expansion:
+    - action: recommend_new_markets
+      based_on:
+        - activity_growth_rate
+        - cre_discussion_volume
+        - market_similarity_to_existing
+        - untapped_potential_score
+      output: prioritized_expansion_list
+
+outputs:
+  required:
+    - path: config/cities.yml
+      format: updated_yaml
+      includes:
+        - metro_subreddit_mappings
+        - regional_keywords
+        - monitoring_schedules
+        
+    - path: data/geographic/subreddit_discovery_{{date}}.json
+      content:
+        - discovered_subreddits
+        - validation_scores
+        - rejection_reasons
+        
+  analytics:
+    - total_subreddits_monitored: "count"
+    - geographic_coverage: "percentage"
+    - new_discoveries: "count"
+    - quality_distribution: "histogram"
+
+acceptance_criteria:
+  coverage:
+    - tier_1_metros: "100%"
+    - tier_2_metros: "> 80%"
+    - tier_3_metros: "> 60%"
+    
+  quality:
+    - validated_subreddits: "> 90%"
+    - false_positive_rate: "< 5%"
+    - cre_relevance_average: "> 0.7"
+    
+  expansion:
+    - new_subreddits_per_sprint: "> 3"
+    - geographic_diversity: "balanced"
+
+monitoring:
+  continuous_discovery:
+    frequency: weekly
+    automation: enabled
+    
+  quality_tracking:
+    - subreddit_activity_trends
+    - relevance_score_changes
+    - geographic_coverage_maps
+    
+  alerts:
+    - new_high_value_subreddit_found
+    - existing_subreddit_quality_degradation
+    - geographic_coverage_gap_detected
+
+integration:
+  - goose_recipe: geo_analyzer.yaml
+  - mcp_endpoint: /target_local_subs
+  - dashboard: geographic_coverage_map
+
+---
+# bmad/stories/05_niche_hunter.yml
+# Technique 5: Vertical/Niche Specialization
+
+id: CRE-SI-05
+name: Niche Hunter
+epic: Vertical Market Intelligence
+technique: Vertical Specialization and Lexicon Development
+role: NicheHunter
+priority: P1
+
+description: |
+  Develop and maintain specialized vocabularies for CRE verticals
+  (office, retail, industrial, multifamily, hospitality, mixed-use).
+  Identify niche opportunities and vertical-specific trends.
+
+context:
+  sources:
+    - path: data/verticals/
+      purpose: vertical-specific data
+    - path: config/vertical_lexicons.yml
+      purpose: specialized terminology
+    - path: docs/vertical_playbooks/
+      purpose: vertical analysis strategies
+      
+  verticals:
+    office:
+      focus: [workplace, sublease, amenities, class_ratings]
+    retail:
+      focus: [foot_traffic, tenant_mix, e_commerce_impact]
+    industrial:
+      focus: [logistics, last_mile, automation, specs]
+    multifamily:
+      focus: [occupancy, rent_growth, amenities, demographics]
+    hospitality:
+      focus: [adr, revpar, brands, travel_trends]
+    mixed_use:
+      focus: [live_work_play, integration, placemaking]
+      
+  dependencies:
+    - vertical-analyzer-mcp: specialized analysis
+    - industry-data-sources: external feeds
+    - fastapi-mcp: vertical endpoint
+
+tasks:
+  lexicon_development:
+    - action: build_vertical_lexicons
+      per_vertical:
+        - extract_base_terminology
+        - identify_unique_indicators
+        - map_kpi_keywords
+        - discover_emerging_terms
+      sources:
+        - reddit_discussions
+        - industry_reports
+        - professional_forums
+        
+    - action: resolve_terminology_conflicts
+      strategies:
+        - context_disambiguation
+        - vertical_prioritization
+        - weighted_scoring
+      examples:
+        - "class" (office rating vs retail class)
+        - "cap" (cap rate vs cap ex)
+        - "noi" (context-dependent calculation)
+        
+  vertical_analysis:
+    - action: analyze_vertical_dynamics
+      per_vertical:
+        demand_drivers:
+          - identify_key_factors
+          - quantify_impact
+          - track_evolution
+        supply_factors:
+          - pipeline_analysis
+          - conversion_tracking
+          - obsolescence_patterns
+        market_cycles:
+          - phase_identification
+          - leading_indicators
+          - turning_points
+          
+    - action: cross_vertical_correlation
+      analyze:
+        - spillover_effects
+        - substitution_patterns
+        - complementary_relationships
+      output: correlation_matrix
+      
+  opportunity_identification:
+    - action: scan_for_niche_opportunities
+      methods:
+        - gap_analysis
+        - emerging_demand_signals
+        - underserved_segments
+        - conversion_opportunities
+      evaluation_criteria:
+        - market_size
+        - growth_potential
+        - competition_level
+        - barrier_to_entry
+        
+    - action: generate_vertical_insights
+      format: actionable_intelligence
+      components:
+        - trend_analysis
+        - opportunity_scoring
+        - risk_assessment
+        - timing_recommendations
+        
+  specialization_strategy:
+    - action: develop_vertical_playbooks
+      per_vertical:
+        - data_collection_strategy
+        - analysis_framework
+        - monitoring_cadence
+        - alert_thresholds
+        
+    - action: optimize_vertical_coverage
+      balance:
+        - resource_allocation
+        - roi_potential
+        - strategic_importance
+        - market_timing
+
+outputs:
+  required:
+    - path: config/vertical_lexicons_{{version}}.yml
+      content:
+        per_vertical:
+          - base_terms
+          - unique_indicators
+          - kpi_mappings
+          - emerging_vocabulary
+          
+    - path: data/verticals/analysis_{{date}}.json
+      content:
+        - vertical_performance_metrics
+        - opportunity_rankings
+        - trend_indicators
+        - cross_vertical_insights
+        
+  reports:
+    - vertical_opportunity_matrix
+    - niche_market_assessments
+    - terminology_evolution_tracking
+    - competitive_positioning_by_vertical
+
+acceptance_criteria:
+  coverage:
+    - all_verticals_analyzed: true
+    - lexicon_completeness: "> 90%"
+    - opportunity_identification: "> 5 per vertical"
+    
+  quality:
+    - terminology_precision: "> 0.85"
+    - insight_actionability: "> 0.8"
+    - false_discovery_rate: "< 0.1"
+    
+  differentiation:
+    - unique_insights_per_vertical: "> 3"
+    - competitive_advantage_score: "> 0.7"
+
+monitoring:
+  vertical_tracking:
+    - post_volume_by_vertical
+    - sentiment_by_vertical
+    - emerging_topics_by_vertical
+    
+  performance_metrics:
+    - lexicon_hit_rate
+    - opportunity_conversion_rate
+    - insight_value_score
+    
+  alerts:
+    - new_vertical_trend_detected
+    - terminology_shift_identified
+    - opportunity_window_opening
+
+integration:
+  - goose_recipe: vertical_specialist.yaml
+  - mcp_endpoint: /specialize_verticals
+  - dashboard: vertical_intelligence_matrix
+
+---
+# bmad/stories/06_dual_sort_backfill.yml
+# Technique 6: Dual-Sort Strategy and Historical Backfill
+
+id: CRE-SI-06
+name: Dual-Sort Strategist
+epic: Comprehensive Coverage
+technique: Multi-Sort Strategy with Backfill
+role: DualSortBackfill
+priority: P2
+
+description: |
+  Implement dual-sort strategy (new + relevance) for comprehensive data
+  collection. Execute historical backfill to eliminate coverage gaps and
+  ensure complete market intelligence.
+
+context:
+  sources:
+    - path: data/coverage/gap_analysis.json
+      purpose: identify missing periods
+    - path: config/dual_sort_config.yml
+      purpose: sort strategy parameters
+    - path: data/historical/
+      purpose: existing historical data
+      
+  strategies:
+    sort_new:
+      purpose: capture_fresh_content
+      frequency: daily
+      depth: 24_hours
+    sort_relevance:
+      purpose: find_high_value_content
+      frequency: weekly
+      depth: 30_days
+    sort_top:
+      purpose: identify_cornerstone_content
+      frequency: monthly
+      depth: all_time
+      
+  dependencies:
+    - reddit-api: multi-sort capabilities
+    - dedup-engine: cross-sort deduplication
+    - fastapi-mcp: dual sort endpoint
+
+tasks:
+  coverage_analysis:
+    - action: identify_coverage_gaps
+      dimensions:
+        temporal:
+          - missing_days
+          - low_volume_periods
+          - sort_strategy_gaps
+        geographic:
+          - uncovered_metros
+          - undersampled_regions
+        topical:
+          - missing_discussions
+          - trending_gaps
+      output: gap_inventory
+      
+    - action: prioritize_backfill_targets
+      criteria:
+        - business_impact
+        - data_availability
+        - resource_cost
+        - time_sensitivity
+      output: backfill_queue
+      
+  dual_sort_execution:
+    - action: execute_sort_new
+      schedule: "*/6 hours"
+      params:
+        timeframe: 6_hours
+        min_score: 0
+        include_comments: true
+      dedup_check: true
+      
+    - action: execute_sort_relevance
+      schedule: daily
+      params:
+        timeframe: 7_days
+        min_score: 5
+        keyword_boost: true
+      merge_with_new: true
+      
+    - action: execute_sort_top
+      schedule: weekly
+      params:
+        timeframe: all
+        min_score: 50
+        limit: 1000
+      identify_evergreen: true
+      
+  deduplication:
+    - action: cross_sort_deduplication
+      strategies:
+        - exact_id_match
+        - url_normalization
+        - fuzzy_content_matching
+        - temporal_clustering
+      conflict_resolution: keep_highest_engagement
+      
+    - action: maintain_dedup_cache
+      storage: redis
+      ttl: 90_days
+      bloom_filter: true
+      
+  backfill_orchestration:
+    - action: execute_historical_backfill
+      chunking:
+        size: 7_days
+        parallel: 3
+        rate_limit_aware: true
+      per_chunk:
+        - fetch_historical_data
+        - apply_quality_filters
+        - merge_with_existing
+        - update_coverage_map
+      error_handling:
+        retry: 3
+        fallback: skip_and_log
+        
+    - action: validate_backfill_quality
+      checks:
+        - completeness
+        - consistency
+        - temporal_ordering
+        - deduplication_success
+      threshold: 0.95
+      
+  synthesis:
+    - action: merge_multi_sort_results
+      strategy: weighted_combination
+      weights:
+        new: 0.4
+        relevance: 0.4
+        top: 0.2
+      output: unified_dataset
+      
+    - action: generate_coverage_report
+      metrics:
+        - temporal_coverage
+        - geographic_coverage
+        - topical_coverage
+        - quality_distribution
+      visualizations:
+        - coverage_heatmap
+        - gap_timeline
+        - quality_trends
+
+outputs:
+  required:
+    - path: data/dual_sort/results_{{date}}.jsonl
+      content:
+        - merged_posts
+        - sort_metadata
+        - relevance_scores
+        
+    - path: data/coverage/report_{{date}}.json
+      content:
+        - coverage_metrics
+        - gap_analysis
+        - backfill_progress
+        
+  datasets:
+    - unified_corpus: data/processed/unified/
+    - deduplicated_set: data/processed/dedup/
+    - historical_backfill: data/historical/backfill/
+    
+  analytics:
+    - total_unique_posts: "count"
+    - coverage_improvement: "percentage"
+    - deduplication_rate: "percentage"
+    - backfill_completion: "percentage"
+
+acceptance_criteria:
+  coverage:
+    - temporal_coverage: "> 95%"
+    - geographic_coverage: "> 90%"
+    - no_gaps_larger_than: "7 days"
+    
+  quality:
+    - deduplication_accuracy: "> 98%"
+    - data_consistency: "> 99%"
+    - merge_integrity: "validated"
+    
+  performance:
+    - backfill_speed: "> 10000 posts/minute"
+    - dedup_speed: "> 50000 posts/minute"
+    - storage_efficiency: "< 2x raw size"
+
+monitoring:
+  coverage_tracking:
+    - real_time_coverage_dashboard
+    - gap_detection_alerts
+    - backfill_progress_tracking
+    
+  quality_metrics:
+    - duplicate_rate_trending
+    - data_quality_scores
+    - completeness_tracking
+    
+  operational:
+    - api_usage_monitoring
+    - rate_limit_tracking
+    - error_rate_monitoring
+
+automation:
+  scheduled_tasks:
+    - dual_sort_execution
+    - gap_analysis
+    - backfill_queue_processing
+    
+  triggers:
+    - gap_detected: initiate_backfill
+    - quality_degradation: alert_team
+    - coverage_target_met: generate_report
+
+integration:
+  - goose_recipe: dual_sort_orchestrator.yaml
+  - mcp_endpoint: /execute_dual_sort
+  - monitoring: coverage_dashboard
+
+---
+# bmad/PRD.md
+# Product Requirements Document: CRE Intelligence Platform
+
+## Problem Statement
+Commercial real estate professionals need timely, comprehensive intelligence from 
+social media discussions to identify market opportunities, understand tenant concerns,
+and track competitive activity. Current manual monitoring is inefficient and misses
+critical signals.
+
+## Solution
+An automated, AI-powered intelligence platform that harvests, processes, and analyzes
+Reddit discussions using six specialized techniques, delivered through an orchestrated
+pipeline with human-in-the-loop oversight.
+
+## Goals
+1. Achieve 95% coverage of relevant CRE discussions across target markets
+2. Reduce intelligence gathering time by 80%
+3. Identify emerging opportunities 2-4 weeks before competitors
+4. Maintain >90% precision in relevance filtering
+
+## Non-Goals
+- Real-time streaming (batch processing is sufficient)
+- Sentiment analysis beyond basic classification
+- Automated trading or investment decisions
+- Coverage beyond Reddit initially
+
+## Success Metrics
+
+### Primary KPIs
+- Coverage Rate: % of relevant discussions captured
+- Precision: % of captured content that is actually relevant
+- Timeliness: Average age of content when processed
+- Efficiency: Hours saved vs manual process
+
+### Secondary Metrics
+- Lexicon Growth: New valuable terms discovered monthly
+- Geographic Expansion: New markets covered quarterly
+- Vertical Depth: Insights per vertical per month
+- User Satisfaction: NPS from intelligence consumers
+
+## User Stories
+
+### As a CRE Analyst
+- I want to see daily intelligence briefs for my markets
+- I want to search historical discussions by topic/location
+- I want alerts for significant market events
+
+### As a Portfolio Manager
+- I want weekly executive summaries of market trends
+- I want competitive intelligence on other players
+- I want early warning signals for market shifts
+
+### As a Data Scientist
+- I want access to cleaned, structured datasets
+- I want to experiment with new analysis techniques
+- I want to track model performance over time
+
+## Technical Requirements
+
+### Functional Requirements
+1. **Data Collection**
+   - Multi-sort Reddit harvesting (new, relevance, top)
+   - Automatic subreddit discovery
+   - Historical backfill capabilities
+
+2. **Processing Pipeline**
+   - 6-stage filtering system
+   - TF-IDF phrase extraction
+   - Geographic and vertical classification
+
+3. **Intelligence Delivery**
+   - Interactive Goose sessions
+   - Automated reports via MCP
+   - API access for downstream systems
+
+### Non-Functional Requirements
+1. **Performance**
+   - Process 10,000 posts in <60 seconds
+   - Generate reports in <5 seconds
+   - Support 10 concurrent users
+
+2. **Reliability**
+   - 99.9% uptime for core services
+   - Automatic failure recovery
+   - Data integrity guarantees
+
+3. **Scalability**
+   - Handle 10x data volume increase
+   - Add new markets without code changes
+   - Support additional data sources
+
+## Architecture Decisions
+
+### Core Technologies
+- **Orchestration**: Goose (primary) + BMAD (structured workflows)
+- **Data Processing**: Python + Pandas + Scikit-learn
+- **API Layer**: FastAPI with MCP exposure
+- **Knowledge Base**: Git repositories with MCP access
+- **Automation**: MCP Use library + n8n/cron
+
+### Data Flow
+1. Goose coordinates intelligence gathering sessions
+2. BMAD stories structure specific analysis tasks
+3. FastAPI MCP exposes processing tools
+4. Git MCP provides persistent knowledge
+5. MCP Use enables headless automation
+
+## Sprint Planning
+
+### Sprint 1 (Foundation)
+- Set up monorepo structure
+- Deploy FastAPI MCP server
+- Implement basic filtering pipeline
+- Create first BMAD stories
+
+### Sprint 2 (Intelligence)
+- Add TF-IDF phrase mining
+- Implement geographic targeting
+- Build Goose session templates
+- Create Git MCP knowledge base
+
+### Sprint 3 (Specialization)
+- Add vertical specialization
+- Implement dual-sort strategy
+- Build automated reports
+- Deploy monitoring dashboard
+
+### Sprint 4 (Optimization)
+- Add payload optimization
+- Implement deduplication
+- Performance tuning
+- User acceptance testing
+
+## Risk Mitigation
+
+### Technical Risks
+- **API Rate Limits**: Implement intelligent caching and request scheduling
+- **Data Quality**: Multi-stage validation and human review processes
+- **System Complexity**: Modular architecture with clear boundaries
+
+### Business Risks
+- **Adoption**: Iterative rollout with power user feedback
+- **Accuracy**: Continuous monitoring and model refinement
+- **Compliance**: Data retention policies and privacy controls
+
+## Success Criteria
+
+### Launch Criteria
+- All 6 techniques implemented and tested
+- 3 metro areas fully covered
+- Daily automated intelligence generation
+- <5% false positive rate
+
+### Long-term Success
+- 20+ metros covered
+- 5 verticals with specialized intelligence
+- 50% of investment decisions informed by platform
+- ROI of 10x on platform investment
+
+---
+# bmad/architecture.md
+# CRE Intelligence Platform Architecture
+
+## System Overview
+The CRE Intelligence Platform is a distributed, AI-powered system that combines
+human expertise with automated intelligence gathering to deliver actionable
+commercial real estate insights.
+
+## Architectural Principles
+
+### 1. Separation of Concerns
+- **Orchestration**: Goose manages interactive workflows
+- **Structure**: BMAD provides repeatable story patterns
+- **Processing**: MCP servers handle specific capabilities
+- **Knowledge**: Git repositories store persistent context
+- **Automation**: MCP Use enables headless execution
+
+### 2. Composability
+- Each component can function independently
+- Standard MCP protocol for inter-component communication
+- Pluggable architecture for new capabilities
+- Tool chaining for complex workflows
+
+### 3. Human-in-the-Loop
+- Interactive decision points in workflows
+- Quality validation checkpoints
+- Expert knowledge injection
+- Continuous improvement feedback
+
+## Component Architecture
+
+### Goose (Orchestration Layer)
+```
+Responsibilities:
+- Session management
+- Interactive workflow execution
+- Context preservation
+- Tool coordination
+
+Interfaces:
+- MCP client connections
+- User interaction terminal
+- State persistence API
+```
+
+### BMAD (Structure Layer)
+```
+Responsibilities:
+- Story definition and execution
+- Acceptance testing
+- Sprint coordination
+- Role management
+
+Interfaces:
+- YAML story definitions
+- Git-based configuration
+- MCP tool invocation
+```
+
+### FastAPI MCP (Processing Layer)
+```
+Responsibilities:
+- Data filtering and transformation
+- TF-IDF analysis
+- Geographic processing
+- Vertical specialization
+
+Interfaces:
+- HTTP REST endpoints
+- MCP tool exposure
+- Async job processing
+```
+
+### Git MCP (Knowledge Layer)
+```
+Responsibilities:
+- Configuration management
+- Historical data access
+- Template storage
+- Documentation serving
+
+Interfaces:
+- Git protocol
+- MCP read operations
+- Version control
+```
+
+### MCP Use (Automation Layer)
+```
+Responsibilities:
+- Headless tool execution
+- Scheduled job running
+- Batch processing
+- Integration orchestration
+
+Interfaces:
+- Python API
+- MCP client protocol
+- Scheduling hooks
+```
+
+## Data Architecture
+
+### Data Flow Patterns
+```
+1. Harvest Flow:
+   Reddit API -> Harvester -> Raw Storage -> Processing Pipeline
+
+2. Analysis Flow:
+   Raw Data -> Filtering -> Mining -> Classification -> Intelligence
+
+3. Delivery Flow:
+   Intelligence -> Reports -> Distribution -> Archival
+```
+
+### Storage Strategy
+```
+/data
+  /raw         - Unprocessed Reddit posts (JSONL)
+  /processed   - Filtered and enriched data
+  /lexicon     - Vocabulary and classifications
+  /cache       - Temporary processing data
+  /archive     - Historical intelligence
+```
+
+### Data Contracts
+- Input: Reddit API JSON schema
+- Processing: Pandas DataFrame with required fields
+- Output: Structured JSON with metadata
+- Reports: Markdown with embedded metrics
+
+## Security Architecture
+
+### Authentication & Authorization
+- OAuth2 for user authentication
+- API key rotation for services
+- Role-based access control
+- Audit logging for compliance
+
+### Data Protection
+- Encryption at rest (AES-256)
+- TLS for data in transit
+- PII detection and masking
+- Secure credential management
+
+### Network Security
+- Private VPC for services
+- API gateway with rate limiting
+- Web application firewall
+- DDoS protection
+
+## Scalability Architecture
+
+### Horizontal Scaling
+- Stateless MCP servers
+- Load balanced endpoints
+- Distributed job processing
+- Shared cache layer
+
+### Performance Optimization
+- Intelligent caching strategies
+- Batch processing for efficiency
+- Async/await patterns
+- Connection pooling
+
+### Resource Management
+- CPU/memory limits per service
+- Auto-scaling based on load
+- Queue-based job distribution
+- Circuit breakers for resilience
+
+## Deployment Architecture
+
+### Container Strategy
+```yaml
+services:
+  goose:
+    image: goose:latest
+    replicas: 2
+    
+  fastapi-mcp:
+    image: cre-fastapi-mcp:latest
+    replicas: 3
+    
+  redis:
+    image: redis:alpine
+    replicas: 1
+    
+  postgres:
+    image: postgres:14
+    replicas: 1
+```
+
+### Environment Management
+- Development: Local Docker Compose
+- Staging: Kubernetes cluster
+- Production: Multi-region deployment
+
+### CI/CD Pipeline
+1. Code commit triggers tests
+2. Build Docker images
+3. Deploy to staging
+4. Run acceptance tests
+5. Blue-green deploy to production
+
+## Monitoring Architecture
+
+### Metrics Collection
+- Prometheus for time-series metrics
+- Grafana for visualization
+- Custom dashboards per component
+- Alert manager for notifications
+
+### Logging Strategy
+- Structured JSON logging
+- Centralized log aggregation
+- Log retention policies
+- Search and analysis tools
+
+### Tracing
+- Distributed tracing with OpenTelemetry
+- Request flow visualization
+- Performance bottleneck identification
+- Error tracking and debugging
+
+## Integration Architecture
+
+### External Systems
+- Reddit API (rate-limited)
+- Apify Actor platform
+- Market data providers
+- Notification services
+
+### Internal APIs
+- RESTful HTTP for synchronous
+- Message queues for async
+- WebSocket for real-time
+- GraphQL for flexible queries
+
+### Event Architecture
+- Event sourcing for audit trail
+- CQRS for read/write separation
+- Event-driven workflows
+- Saga pattern for transactions
+
+## Disaster Recovery
+
+### Backup Strategy
+- Daily full backups
+- Hourly incremental backups
+- Geographic replication
+- Point-in-time recovery
+
+### Failure Scenarios
+- Service failure: Auto-restart with backoff
+- Data corruption: Restore from backup
+- Region failure: Failover to secondary
+- Complete failure: Manual recovery playbook
+
+### Recovery Objectives
+- RTO (Recovery Time): <4 hours
+- RPO (Recovery Point): <1 hour
+- Availability target: 99.9%
+- Data durability: 99.999999%
