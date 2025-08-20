@@ -1,0 +1,162 @@
+# bmad/stories/resilient_story_template.yml
+# Resilient Story Template with built-in recovery and checkpointing
+
+id: CRE-SI-RESILIENT
+name: Resilient Story Template
+epic: System Reliability
+technique: Resilient Execution
+role: ResilienceEngine
+priority: P0
+
+description: |
+  Template for resilient BMAD stories with automatic checkpointing,
+  task decomposition, and fallback strategies to handle agent drops.
+
+resilience:
+  checkpoint_frequency: per_task
+  max_task_size: 5000_tokens
+  timeout_per_task: 60_seconds
+  fallback_strategy: decompose_and_retry
+  retry_attempts: 3
+  retry_backoff: exponential
+
+context:
+  sources:
+    - path: docs/project.md
+    - path: data/processed/
+    - path: data/lexicon/
+    
+  constraints:
+    - max_context_tokens: 100000
+    - preserve_priority_context: true
+    - sliding_window_enabled: true
+    
+  dependencies:
+    - resilient_goose_agent
+    - qwen3_supervisor
+    - context_manager
+
+tasks:
+  setup:
+    - action: initialize_resilient_context
+      method: sliding_window
+      params:
+        max_tokens: 50000
+        priority_retention: true
+        
+    - action: validate_story_size
+      method: estimate_tokens
+      max_allowed: 10000
+      strategy: fragment_if_larger
+      
+    - action: establish_checkpoint_mechanism
+      method: filesystem
+      location: data/checkpoints/
+      frequency: per_task
+
+  execution:
+    - action: task_with_checkpoint
+      checkpoint: enabled
+      max_retries: 3
+      timeout: 30
+      fallback:
+        - strategy: reduce_scope
+        - strategy: use_cached_result
+        - strategy: delegate_to_qwen3
+        
+    - action: monitor_execution_health
+      method: continuous
+      interval: 5_seconds
+      metrics:
+        - agent_connection_status
+        - context_size
+        - token_usage
+        - error_rate
+        
+    - action: adaptive_task_sizing
+      method: dynamic
+      based_on:
+        - available_context_space
+        - agent_performance
+        - task_complexity
+
+  recovery:
+    - action: detect_failure
+      method: heartbeat_monitoring
+      timeout: 10_seconds
+      
+    - action: automatic_recovery
+      strategy: reconnect_and_resume
+      max_attempts: 3
+      backoff: exponential
+      
+    - action: context_restoration
+      method: from_last_checkpoint
+      fallback: from_cache
+      
+    - action: result_reconciliation
+      method: compare_with_expected
+      tolerance: 5_percent
+
+outputs:
+  required:
+    - path: data/processed/resilient_results/
+      format: json
+      include_metadata: true
+      
+    - path: data/checkpoints/
+      retention: 7_days
+      cleanup_policy: keep_last_10
+      
+  metrics:
+    - execution_time: "seconds"
+    - recovery_events: "count"
+    - fallback_usage: "count"
+    - context_efficiency: "percentage"
+
+acceptance_criteria:
+  functional:
+    - all_tasks_completed: true
+    - checkpoints_created: true
+    - recovery_mechanism_tested: true
+    
+  performance:
+    - max_recovery_time: "< 30 seconds"
+    - checkpoint_overhead: "< 5%"
+    
+  reliability:
+    - failure_recovery_rate: "> 95%"
+    - data_consistency: "100%"
+
+monitoring:
+  alerts:
+    - condition: "recovery_attempts > 3"
+      severity: critical
+      action: manual_intervention_required
+      
+    - condition: "context_size > 90000"
+      severity: warning
+      action: context_pruning_initiated
+      
+    - condition: "task_failure_rate > 0.1"
+      severity: warning
+      action: fallback_to_qwen3
+
+  metrics_tracking:
+    - recovery_success_rate
+    - average_recovery_time
+    - checkpoint_frequency
+    - context_utilization
+
+execution_notes: |
+  This resilient story template should be used as a base for all critical
+  BMAD stories that require high reliability. The template includes:
+  
+  1. Automatic checkpointing at task boundaries
+  2. Context management with sliding window
+  3. Fallback to QWEN3 on agent failures
+  4. Recovery mechanisms for dropped connections
+  5. Monitoring and alerting for reliability metrics
+  
+  When implementing specific stories, customize the tasks section while
+  maintaining the resilience framework.

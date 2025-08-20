@@ -1505,3 +1505,67 @@ async def execute_full_pipeline(
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+# ============================================================================
+# Streaming Support for Large Tasks
+# ============================================================================
+
+class StreamingResponseGenerator:
+    """Generator for streaming responses"""
+    
+    def __init__(self, data_source):
+        self.data_source = data_source
+    
+    async def generate(self):
+        """Generate streaming response"""
+        try:
+            # Process data in chunks
+            for chunk in self._process_in_chunks():
+                yield f"data: {json.dumps(chunk)}\n\n"
+                # Small delay to prevent blocking
+                await asyncio.sleep(0.01)
+            
+            # Send completion signal
+            yield "data: {\"status\": \"complete\"}\n\n"
+        except Exception as e:
+            yield f"data: {{\"error\": \"{str(e)}\"}}\n\n"
+    
+    def _process_in_chunks(self):
+        """Process data in chunks"""
+        # This is a placeholder - actual implementation would depend on the data source
+        # For now, we'll simulate chunked processing
+        if hasattr(self.data_source, '__iter__'):
+            chunk_size = 10
+            data_list = list(self.data_source) if not isinstance(self.data_source, list) else self.data_source
+            
+            for i in range(0, len(data_list), chunk_size):
+                chunk = data_list[i:i + chunk_size]
+                yield {
+                    "chunk": i // chunk_size + 1,
+                    "data": chunk,
+                    "progress": min(100, (i + chunk_size) * 100 // len(data_list))
+                }
+        else:
+            # Single item
+            yield {
+                "chunk": 1,
+                "data": [self.data_source],
+                "progress": 100
+            }
+
+@app.post("/stream_process")
+async def stream_process(request: dict):
+    """Stream processing endpoint for large tasks"""
+    from fastapi.responses import StreamingResponse
+    
+    # Create streaming generator
+    generator = StreamingResponseGenerator(request.get("data", []))
+    
+    return StreamingResponse(
+        generator.generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "Access-Control-Allow-Origin": "*",
+        }
+    )
